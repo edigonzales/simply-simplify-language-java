@@ -1,5 +1,6 @@
 package dev.edigonzales.service;
 
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -17,19 +18,24 @@ import org.slf4j.LoggerFactory;
 public class SimplifyService {
     private static final Logger logger = LoggerFactory.getLogger(SimplifyService.class);
 
-    private ChatModel openAiChatModel;
+    private ChatClient openAiChatClient;
         
-    public SimplifyService(@Qualifier("gpt-4") ChatModel openAiChatModel) {
-        this.openAiChatModel = openAiChatModel;
+    public SimplifyService(@Qualifier("gpt-4") ChatClient openAiChatClient) {
+        this.openAiChatClient = openAiChatClient;
     }
 
     public void simplifyText() {
         System.err.println("simplifying...");
         
-        System.err.println(openAiChatModel);
+        System.err.println(openAiChatClient);
         
-        ChatResponse response = openAiChatModel.call(new Prompt("Tell me a dad joke."));
-        System.out.println(response.getResult().getOutput().getContent());
+        
+        String response = openAiChatClient.prompt()
+                .user("Tell me a dad joke.")
+                .call()
+                .content();
+        
+        System.out.println(response);
         
 //        try {
 //            Thread.sleep(20_000);

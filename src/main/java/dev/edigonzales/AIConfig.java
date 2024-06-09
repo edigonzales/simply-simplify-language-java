@@ -1,5 +1,6 @@
 package dev.edigonzales;
 
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -18,13 +19,15 @@ public class AIConfig {
     private String openAiModel;
 
     @Bean("gpt-4")
-    public ChatModel openAiChatModel() {
+    public ChatClient openAiChatClient() {
         var openAiApi = new OpenAiApi(openAiApiKey);        
         var openAiChatOptions = OpenAiChatOptions.builder()
                     .withModel("gpt-4")
                 .build();
         var chatModel = new OpenAiChatModel(openAiApi, openAiChatOptions);
-        return chatModel;   
+        var client = ChatClient.builder(chatModel).build();
+                
+        return client;   
     }
     
 }
