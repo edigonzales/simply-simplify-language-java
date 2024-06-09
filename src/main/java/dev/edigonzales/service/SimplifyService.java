@@ -1,13 +1,36 @@
 package dev.edigonzales.service;
 
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class SimplifyService {
+    private static final Logger logger = LoggerFactory.getLogger(SimplifyService.class);
+
+    private ChatModel openAiChatModel;
+        
+    public SimplifyService(@Qualifier("gpt-4") ChatModel openAiChatModel) {
+        this.openAiChatModel = openAiChatModel;
+    }
 
     public void simplifyText() {
         System.err.println("simplifying...");
-
+        
+        System.err.println(openAiChatModel);
+        
+        ChatResponse response = openAiChatModel.call(new Prompt("Tell me a dad joke."));
+        System.out.println(response.getResult().getOutput().getContent());
+        
 //        try {
 //            Thread.sleep(20_000);
 //        } catch (InterruptedException e) {

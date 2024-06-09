@@ -83,6 +83,7 @@ public class SimplifyView extends Composite<VerticalLayout> {
         textAreaBefore.setLabel("Ausgangstext, den du vereinfachen möchtest");
         textAreaBefore.setWidth("100%");
         textAreaBefore.getStyle().set("flex-grow", "1");
+        textAreaBefore.getStyle().set("font-size", "0.9em");
         textAreaBefore.setMaxLength(MAX_CHARACTERS);
         verticalCol1.add(textAreaBefore);
         textSmallBefore.setText("Lorem ipsum dolor sit amet.");
@@ -97,6 +98,7 @@ public class SimplifyView extends Composite<VerticalLayout> {
         textAreaAfter.setLabel("Dein vereinfachter Text");
         textAreaAfter.setWidth("100%");
         textAreaAfter.getStyle().set("flex-grow", "1");
+        textAreaAfter.getStyle().set("font-size", "0.9em");
         //textAreaAfter.setReadOnly(true);
         verticalCol2.add(textAreaAfter);
         textSmallAfter.setText("Lorem ipsum dolor sit amet.");

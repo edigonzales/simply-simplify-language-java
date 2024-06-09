@@ -35,6 +35,25 @@
                 <enabled>false</enabled>
             </snapshots>
         </repository>
+        
+    <repository>
+      <id>spring-milestones</id>
+      <name>Spring Milestones</name>
+      <url>https://repo.spring.io/milestone</url>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>spring-snapshots</id>
+      <name>Spring Snapshots</name>
+      <url>https://repo.spring.io/snapshot</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
+
+        
     </repositories>
 
     <pluginRepositories>
@@ -56,6 +75,15 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-bom</artifactId>
+            <version>1.0.0-M1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+
         </dependencies>
     </dependencyManagement>
 
@@ -94,6 +122,13 @@
             <artifactId>vaadin-testbench-junit5</artifactId>
             <scope>test</scope>
         </dependency>
+        
+<dependency>
+    <groupId>org.springframework.ai</groupId>
+    <artifactId>spring-ai-openai</artifactId>
+</dependency>
+
+
     </dependencies>
 
     <build>
