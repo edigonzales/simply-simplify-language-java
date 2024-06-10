@@ -227,7 +227,7 @@ public class SimplifyView extends Composite<VerticalLayout> {
     
     // TODO: das ist die simplifyText-Methode. 
     // Die Resourcen brauche ich hier gar nicht. Erst im Service.
-    // Rückgabewert ist SimplifyResponse-Record mit Infos über Understandability. AnalyzeResponse?
+    // Rückgabewert ist SimplifyResponse-Record mit Infos über Understandability, Zeitdauer. AnalyzeResponse?
     // Sinnvoll Request-Record? siehe https://github.com/edigonzales/spring-ai-demo/blob/main/src/main/java/dev/edigonzales/demo/functions/WeatherService.java
     private String createPrompt(String text, boolean useLeichteSprache, boolean doCondenseText) throws RuntimeException  {
 //        System.err.println(text);
