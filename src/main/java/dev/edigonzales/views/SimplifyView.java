@@ -1,5 +1,15 @@
 package dev.edigonzales.views;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+
 import com.vaadin.flow.component.Composite;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -28,9 +38,33 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 @RouteAlias(value = "")
 public class SimplifyView extends Composite<VerticalLayout> {
 
+    @Value("classpath:/prompts/system_message_es.txt")
+    private Resource systemMessageES;
+
+    @Value("classpath:/prompts/system_message_ls.txt")
+    private Resource systemMessageLS;
+
+    @Value("classpath:/prompts/rules_es.txt")
+    private Resource rulesES;
+
+    @Value("classpath:/prompts/rules_ls.txt")
+    private Resource rulesLS;
+
+    @Value("classpath:/prompts/rewrite_complete.txt")
+    private Resource rewriteComplete;
+
+    @Value("classpath:/prompts/rewrite_condensed.txt")
+    private Resource rewriteCondensed;
+
+    @Value("classpath:/prompts/openai_es.st")
+    private Resource openAiPromptES;
+
+    @Value("classpath:/prompts/openai_ls.st")
+    private Resource openAiPromptLS;
+    
     private static final int MAX_CHARACTERS = 20_000;
     
-    SimplifyService simplifyService;
+    private SimplifyService simplifyService;
     
     public SimplifyView(SimplifyService simplifyService) {
         this.simplifyService = simplifyService;
@@ -52,7 +86,8 @@ public class SimplifyView extends Composite<VerticalLayout> {
         Div textSmallDummy = new Div();
         
         HorizontalLayout layoutRow3 = new HorizontalLayout();
-        Checkbox checkbox = new Checkbox();
+        Checkbox checkboxLeichteSprache = new Checkbox();
+        Checkbox checkboxCondensedText = new Checkbox();
         RadioButtonGroup radioGroup = new RadioButtonGroup();
         
         HorizontalLayout layoutRow4 = new HorizontalLayout();
@@ -137,9 +172,15 @@ public class SimplifyView extends Composite<VerticalLayout> {
         layoutRow3.setWidth("100%");
         layoutRow3.setHeight("min-content");
         
-        checkbox.setLabel("Leichte Sprache");
-        checkbox.getStyle().set("flex-grow", "1");
-        layoutRow3.setAlignSelf(FlexComponent.Alignment.END, checkbox);
+        checkboxLeichteSprache.setLabel("Leichte Sprache");
+        //checkboxLeichteSprache.setHelperText("Leichte Sprache: Lorem ipsum...");
+        checkboxLeichteSprache.getStyle().set("flex-grow", "0");
+        layoutRow3.setAlignSelf(FlexComponent.Alignment.END, checkboxLeichteSprache);
+        //checkboxLeichteSprache.setWidth("min-content");
+        checkboxCondensedText.setLabel("Text verdichten");
+        //checkboxCondensedText.setHelperText("Das Modell konzentriert sich auf essentielle Informationen <br> und versucht, Unwichtiges wegzulassen.");
+        checkboxCondensedText.getStyle().set("flex-grow", "0");
+        layoutRow3.setAlignSelf(FlexComponent.Alignment.END, checkboxCondensedText);        
         radioGroup.setLabel("Sprachmodell");
         radioGroup.getStyle().set("flex-grow", "1");
         radioGroup.setItems("GPT-4", "GPT-4o", "Llama3");
@@ -169,18 +210,65 @@ public class SimplifyView extends Composite<VerticalLayout> {
         layoutRow.add(verticalCol2);
         layoutRow.add(textSmallResult);        
         getContent().add(layoutRow3);
-        layoutRow3.add(checkbox);
+        layoutRow3.add(checkboxLeichteSprache);
+        layoutRow3.add(checkboxCondensedText);
         layoutRow3.add(radioGroup);
         getContent().add(layoutRow4);
         layoutRow4.add(buttonAnalyse);
         layoutRow4.add(buttonSimplify);
         
         buttonSimplify.addClickListener(e -> {
-            
-            System.err.println(e);
-            System.err.println(textAreaBefore.getValue());
-            simplifyService.simplifyText();
+                this.createPrompt(textAreaBefore.getValue(), checkboxLeichteSprache.getValue(), checkboxCondensedText.getValue()); 
+//            simplifyService.simplifyText();
         });
         
+        textAreaBefore.setValue(sampleText01);
     }
+    
+    // TODO: das ist die simplifyText-Methode. 
+    // Die Resourcen brauche ich hier gar nicht. Erst im Service.
+    // Rückgabewert ist SimplifyResponse-Record mit Infos über Understandability. AnalyzeResponse?
+    // Sinnvoll Request-Record? siehe https://github.com/edigonzales/spring-ai-demo/blob/main/src/main/java/dev/edigonzales/demo/functions/WeatherService.java
+    private String createPrompt(String text, boolean useLeichteSprache, boolean doCondenseText) throws RuntimeException  {
+//        System.err.println(text);
+//        System.err.println(useLeichteSprache);
+//        System.err.println(doCondenseText);
+        
+        PromptTemplate promptTemplate; 
+        Map<String,Object> promptContentMap = new HashMap<>();
+        String systemMessage;
+        if (useLeichteSprache) {
+            promptTemplate = new PromptTemplate(openAiPromptLS);
+            promptContentMap.put("rules", rulesLS);
+            try {
+                systemMessage = systemMessageES.getContentAsString(Charset.defaultCharset());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new RuntimeException();
+            }
+        } else {
+            promptTemplate = new PromptTemplate(openAiPromptES);
+            promptContentMap.put("rules", rulesES);
+        }
+
+        promptContentMap.put("prompt", text);
+        if (doCondenseText) {
+            promptContentMap.put("completeness", rewriteCondensed);
+        } else {
+            promptContentMap.put("completeness", rewriteComplete);
+        }
+        
+        Prompt prompt = promptTemplate.create(promptContentMap);
+
+        System.err.println(prompt.getContents());
+        
+        return null;
+    }
+    
+    
+    private String sampleText01 = """
+            Als Vernehmlassungsverfahren wird diejenige Phase innerhalb des Vorverfahrens der Gesetzgebung bezeichnet, in der Vorhaben des Bundes von erheblicher politischer, finanzieller, wirtschaftlicher, ökologischer, sozialer oder kultureller Tragweite auf ihre sachliche Richtigkeit, Vollzugstauglichkeit und Akzeptanz hin geprüft werden. 
+            
+            Die Vorlage wird zu diesem Zweck den Kantonen, den in der Bundesversammlung vertretenen Parteien, den Dachverbänden der Gemeinden, Städte und der Berggebiete, den Dachverbänden der Wirtschaft sowie weiteren, im Einzelfall interessierten Kreisen unterbreitet.
+            """;
 }
