@@ -19,15 +19,28 @@ public class AIConfig {
     private String openAiModel;
 
     @Bean("gpt-4")
-    public ChatClient openAiChatClient() {
+    public ChatClient openAiGpt4ChatClient() {
         var openAiApi = new OpenAiApi(openAiApiKey);        
         var openAiChatOptions = OpenAiChatOptions.builder()
-                    .withModel("gpt-4")
+                    .withModel(OpenAiApi.ChatModel.GPT_4)
                 .build();
         var chatModel = new OpenAiChatModel(openAiApi, openAiChatOptions);
         var client = ChatClient.builder(chatModel).build();
                 
         return client;   
     }
+
+    @Bean("gpt-4o")
+    public ChatClient openAiGpt4oChatClient() {
+        var openAiApi = new OpenAiApi(openAiApiKey);        
+        var openAiChatOptions = OpenAiChatOptions.builder()
+                    .withModel(OpenAiApi.ChatModel.GPT_4_O)
+                .build();
+        var chatModel = new OpenAiChatModel(openAiApi, openAiChatOptions);
+        var client = ChatClient.builder(chatModel).build();
+                
+        return client;   
+    }
+
     
 }
