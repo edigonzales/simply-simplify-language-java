@@ -3,8 +3,7 @@ package dev.edigonzales.simplify;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.Map;
-
+import java.util.Map;import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,6 +29,7 @@ import com.vaadin.flow.router.RouteAlias;
 import com.vaadin.flow.theme.lumo.LumoUtility.Gap;
 
 import ch.qos.logback.classic.Logger;
+import dev.edigonzales.service.AnalyzeService;
 
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 
@@ -42,8 +42,11 @@ public class SimplifyView extends Composite<VerticalLayout> {
     
     private SimplifyService simplifyService;
     
-    public SimplifyView(SimplifyService simplifyService) {
+    private AnalyzeService analyzeService;
+    
+    public SimplifyView(SimplifyService simplifyService, AnalyzeService analyzeService) {
         this.simplifyService = simplifyService;
+        this.analyzeService = analyzeService;
         
         H3 h3 = new H3();
         Paragraph textSmall = new Paragraph();
@@ -202,6 +205,15 @@ public class SimplifyView extends Composite<VerticalLayout> {
                 e.printStackTrace();
             }
         });
+        
+        buttonAnalyse.addClickListener(ev -> {
+            try {
+                analyzeService.getUnderstandability(textAreaBefore.getValue());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        
         
         textAreaBefore.setValue(sampleText01);
     }
