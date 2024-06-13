@@ -151,6 +151,20 @@
     <version>2.3.3</version>
 </dependency>
 
+
+<dependency>
+    <groupId>org.languagetool</groupId>
+    <artifactId>languagetool-core</artifactId>
+    <version>6.4</version>
+</dependency>
+
+    <dependency>
+      <groupId>org.languagetool</groupId>
+      <artifactId>language-de</artifactId>
+      <version>6.4</version>
+    </dependency>
+
+
     </dependencies>
 
     <build>
