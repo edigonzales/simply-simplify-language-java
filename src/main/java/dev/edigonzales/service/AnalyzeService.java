@@ -1,13 +1,12 @@
 package dev.edigonzales.service;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
@@ -18,16 +17,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
-import opennlp.tools.postag.POSModel;
-import opennlp.tools.sentdetect.SentenceDetectorME;
-import opennlp.tools.sentdetect.SentenceModel;
-import opennlp.tools.tokenize.SimpleTokenizer;
-import opennlp.tools.tokenize.TokenizerME;
-import opennlp.tools.tokenize.TokenizerModel;
-
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.parquet.Log;
 import org.apache.parquet.avro.AvroParquetReader;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
@@ -37,8 +27,6 @@ import org.languagetool.AnalyzedTokenReadings;
 import org.languagetool.JLanguageTool;
 import org.languagetool.language.SwissGerman;
 
-import org.languagetool.tokenizers.Tokenizer;
-import org.languagetool.tokenizers.de.GermanWordTokenizer;
 
 
 @Service
@@ -62,43 +50,65 @@ public class AnalyzeService {
     public double getUnderstandability(String text) throws IOException {
         text = punctuateParagraphsAndBulletedLists(text);
         
-        extractTextFeatures(text);
+        Map<String, Double> textStatistics = extractStatistics(text);
+        double score = calculateUnderstandability(textStatistics);
         
-        return 1;
+        return score;
     }
     
-    /* Extract text features from text.
+    /*
+     * Calculate understandability score from text metrics.
+     * 
+     * We derived this formula from a dataset of legal and administrative texts, as well as 
+     * Einfache and Leichte Sprache. We trained a Logistic Regression model to differentiate 
+     * between complex and simple texts. From the most significant model coefficients we 
+     * devised this formula to estimate a text's understandability.
+     * 
+     * It is not a perfect measure, but it gives a good indication of how easy a text is to understand.
+     * We do not take into account a couple of text features that are relevant to understandability, 
+     * such as the use of passive voice, the use of pronouns, or the use of complex sentence 
+     * structures. These features are not easily extracted from text and would require a more complex 
+     * model to calculate.
      */
-    private void extractTextFeatures(String text) throws IOException {
-//        System.err.println(this.wordScores);
-        
-//        SentenceModel sentenceModel = new SentenceModel(openNlpSentenceDetectionModel.getFile());
-//        SentenceDetectorME sentenceDetector = new SentenceDetectorME(sentenceModel);
-//        
-//        String[] sentences = sentenceDetector.sentDetect(text);
-//        
-//        for (String sentence : sentences) {
-//            logger.info(sentence.toString());            
-//        }
-//        
-//        TokenizerModel model = new TokenizerModel(openNlpTokensModel.getFile());
-//        TokenizerME tokenizer = new TokenizerME(model);
-//        String[] tokens = tokenizer.tokenize(text);
-//        
-//        for (String token : tokens) {
-//            if (Pattern.matches("\\p{Punct}", token) || isNumeric(token)) {
-//                continue;
-//            }
-//            System.err.println(token);
-//        }
+    private double calculateUnderstandability(Map<String,Double> statistics) {
+        double commonWordScore = statistics.get("common_word_score");
+        double readabilityIndex = statistics.get("readability_index");
+        double sentenceLengthMean = statistics.get("sentence_length_mean");
+        double sentenceLengthStd = statistics.get("sentence_length_std");
 
+        double cws = (commonWordScore - 7.8) / 1.1;
+        double rix = (readabilityIndex - 3.9) / 1.7;
+        double sls = (sentenceLengthStd - 6.4) / 4.2;
+        double slm = (sentenceLengthMean - 11.7) / 3.7;
+        cws = 1 - cws;
+
+        double score = ((cws * 0.2 + rix * 0.325 + sls * 0.225 + slm * 0.15) + 1.3) * 3.5;
+        logger.debug("score 1: " + score);
         
+       // We clip the score to a range of 0 to 20.
+       score = 20 - score;
+       if (score < 0) {
+           score = 0;
+       } else if (score > 20) {
+           score = 20;
+       }
+       logger.debug("score 2: " + score);
+       return score;
+    }
+    
+    /* Extract statistics from text.
+     */
+    private Map extractStatistics(String text) throws IOException {
         JLanguageTool langTool = new JLanguageTool(new SwissGerman());
 
+        // Calculate common word score and readability index (rix)
         int docLength = 0;
         int docScores = 0;
+        int longWordCount = 0;
+        List<Integer> sentencesWordCount = new ArrayList<>();
         List<AnalyzedSentence> analyzedSentences = langTool.analyzeText(text);
         for (AnalyzedSentence analyzedSentence : analyzedSentences) {
+            int sentenceWordCount = 0;
             for (AnalyzedTokenReadings analyzedTokens : analyzedSentence.getTokensWithoutWhitespace()) {
                 if (analyzedTokens.getReadings().size() > 0) {
                     String token = analyzedTokens.getReadings().get(0).getToken();
@@ -106,90 +116,53 @@ public class AnalyzeService {
                         String lemma = analyzedTokens.getReadings().get(0).getLemma();
                         if (lemma != null) {
                             if (wordScores.containsKey(lemma.toLowerCase())) {
+                                // Unterschied zu ZH-Lösung: z.B. wird zweite nicht gefunden, weil das Lemma weiterhin zweite ist.
+                                // Und im Parquet-File "zweiter" steht.
                                 docScores += wordScores.get(lemma.toLowerCase());
+                            }
+                            // Wenn hier die langen "Wörter" gezählt werden, passt es besser mit dem RIX der ZH-Lösung zusammen
+                            // (also rein durch ausprobieren). 
+                            if(token.length() >= 6) {
+                                longWordCount++;                                
                             }
                         }
                         docLength++;
+                        sentenceWordCount++;
+                        // Tendenziell höher als die ZH-Lösung
+//                        if(token.length() >= 6) {
+//                            longWordCount++;
+//                        }
                     }
                 }
             }
+            sentencesWordCount.add(sentenceWordCount);
         }
+        System.out.println("docLength: " + docLength);        
+        System.out.println("docScores: " + docScores);
+        System.out.println("sentencesWordCount: " + sentencesWordCount);
+        System.out.println("longWordCount: " + longWordCount);
+        System.out.println("analyzedSentences.size(): " + analyzedSentences.size());
         
-        double commonWordScore = docScores / docLength;
-        System.err.println(commonWordScore);
+        double commonWordScore = (docScores / docLength) / 1000.0;
+        double readabilityIndex = longWordCount / (double) analyzedSentences.size();
+        System.err.println("commonWordScore: " + commonWordScore);
+        System.err.println("readabilityIndex: " + readabilityIndex);
         
-        
-        System.err.println("text: " + text);
-        for (AnalyzedSentence analyzedSentence : analyzedSentences) {
-            System.out.println(analyzedSentence.getText());
-        }
-        
-        
-//        Tokenizer tokenizer = new GermanWordTokenizer();
-//        List<String> tokens = tokenizer.tokenize(text);
+        // Calculate the standard deviation and mean of the sentences
+        double sentenceLengthMean = sentencesWordCount.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+        double variance = sentencesWordCount.stream().mapToDouble(length -> Math.pow(length - sentenceLengthMean, 2)).average().orElse(0.0);
+        double sentenceLengthStd = Math.sqrt(variance);
 
-        // Print the tokens
-//        for (String token : tokens) {
-//            System.out.println(token);
-//        }
-
+        System.err.println("sentenceLengthStd: " + sentenceLengthStd);
+        System.err.println("sentenceLengthMean: " + sentenceLengthMean);
         
-//        List<String> filteredTokens = tokens.stream()
-//                .filter(token -> !token.trim().isEmpty())
-//                .filter(token -> !isNumeric(token))
-//                .filter(token -> {
-//                    if (Pattern.matches("\\p{Punct}", token)) {
-//                        return false;
-//                    }
-//                    return true;
-//                })
-//                .collect(Collectors.toList());
-//
-//        
-//        for (String token : filteredTokens) {
-//            System.out.println(token);
-//        }
-
+        HashMap<String,Double> statistics = new HashMap<>();
+        statistics.put("common_word_score", commonWordScore);
+        statistics.put("readability_index", readabilityIndex);
+        statistics.put("sentence_length_mean", sentenceLengthMean);
+        statistics.put("sentence_length_std", sentenceLengthStd);
         
-
-        
-//        JLanguageTool langTool = new JLanguageTool(Languages.getLanguageForShortCode("de"));
-//        langTool.tok
-
-        
-//        POSModel posModel = new POSModel(openNlpPosModel.getFile());
-//        POSTaggerME posTagger = new POSTaggerME(posModel);
-        
-//        Stream<String> tokensStream = Arrays.stream(tokens).filter(f->{
-//            System.err.println(f);
-//            return true;
-//        }); 
-//        logger.info(tokensStream.toString());
-//        
-//        tokensStream
-//            .filter(t -> {
-//                System.err.println(t);
-//                if (Pattern.matches("\\p{Punct}", t)) {
-//                    return false;
-//                }
-//                return true;
-//            })
-//            .filter(t -> {
-//                System.err.println(t);
-//                return true;
-//            });
-
-
-//        for (String token : tokens) {
-//            logger.info("{}", Pattern.matches("\\p{Punct}", token));
-//
-//            
-//            logger.info(token.toString());            
-//        }
-
-
-
-        
+        return statistics;
     }
     
     public static boolean isNumeric(String str) {
@@ -204,7 +177,7 @@ public class AnalyzeService {
     /*
      * Get common word scores from the parquet file.
      * This is a list of common German words in texts written in Einfache and Leichte Sprache. 
-     * We use this ranking to calculate, how common the vocabulary in the text ist and therefore 
+     * We use this ranking to calculate, how common the vocabulary in the text is and therefore 
      * how easy the text is to understand. We have lemmatized and lower cased the words.
      * Also note that the German `ß` has been replaced with `ss`.
      */
@@ -222,20 +195,7 @@ public class AnalyzeService {
             }
         }
     }
-    
-//    def get_word_scores():
-//        """Get commond word scores from the parquet file.
-//
-//        This is a list of common German words in texts written in Einfache and Leichte Sprache. We use this ranking to calculate, how common the vocabulary in the text ist and therefore how easy the text is to understand.
-//
-//        We have lemmatized and lower cased the words. Also note that the German `ß` has been replaced with `ss`.
-//        """
-//        word_scores = pd.read_parquet("word_scores.parq")
-//        word_scores = dict(zip(word_scores["lemma"], word_scores["score"]))
-//        return word_scores
-
-    
-    
+        
     /* 
      * Add a dot to lines that do not end with a dot and do some additional clean up to correctly 
      * calculate the understandability score.
@@ -247,7 +207,7 @@ public class AnalyzeService {
      * the understandability score.
      */
     private String punctuateParagraphsAndBulletedLists(String text) {
-        // TODO Ist das wirklich nötig? Führt bei mir dazu, dass es einen leeren Satz gibt 
+        // TODO Ist das wirklich nötig bei mir? Führt bei mir dazu, dass es einen leeren Satz gibt 
         // und ein zusätzlicher Punkt.
         // Add a space to the end of the text to properly process the last sentence.
         // text = text + " ";
