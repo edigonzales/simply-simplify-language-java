@@ -35,18 +35,22 @@ public class AnalyzeService {
 
     @Value("classpath:/data/word_scores.parquet")
     private Resource wordScoresParquet;
-
-    @Value("classpath:/data/opennlp-de-ud-gsd-sentence-1.0-1.9.3.bin")
-    private Resource openNlpSentenceDetectionModel;
-
-    @Value("classpath:/data/opennlp-de-ud-gsd-tokens-1.0-1.9.3.bin")
-    private Resource openNlpTokensModel;
-
-    @Value("classpath:/data/opennlp-de-ud-gsd-pos-1.0-1.9.3.bin")
-    private Resource openNlpPosModel;
+    
+    private JLanguageTool langTool;
     
     private HashMap<String,Integer> wordScores = null;
+    
+    public AnalyzeService(JLanguageTool langTool) {
+        this.langTool = langTool;
+    }
         
+    /**
+     * Calculate understandability score from a given text.
+     * 
+     * @param text 
+     * @return 
+     * @throws IOException
+     */
     public double getUnderstandability(String text) throws IOException {
         text = punctuateParagraphsAndBulletedLists(text);
         
@@ -56,6 +60,34 @@ public class AnalyzeService {
         return score;
     }
     
+    /**
+     * Get CEFR level from understandability score.
+     * We calculated these ranges by scoring various text samples where we had an approximate 
+     * idea of their CEFR level. Again these ranges are not perfect, but give a good 
+     * indication of the CEFR level.
+     * @param score
+     * @return CEFR level
+     */
+    public static String getCefrLevel(double score) {
+        if (score >= 18.3) {
+            return "A1";
+        } else if (score >= 17.7 && score < 18.3) {
+            return "A2";
+        } else if (score >= 17.5 && score < 17.7) {
+            return "A2 bis B1";
+        } else if (score >= 15.7 && score < 17.5) {
+            return "B1";
+        } else if (score >= 13.7 && score < 15.7) {
+            return "B2";
+        } else if (score >= 12.4 && score < 13.7) {
+            return "C1";
+        } else if (score >= 12.2 && score < 12.4) {
+            return "C1 bis C2";
+        } else {
+            return "C2";
+        }
+    }
+
     /*
      * Calculate understandability score from text metrics.
      * 
@@ -83,7 +115,6 @@ public class AnalyzeService {
         cws = 1 - cws;
 
         double score = ((cws * 0.2 + rix * 0.325 + sls * 0.225 + slm * 0.15) + 1.3) * 3.5;
-        logger.debug("score 1: " + score);
         
        // We clip the score to a range of 0 to 20.
        score = 20 - score;
@@ -92,14 +123,14 @@ public class AnalyzeService {
        } else if (score > 20) {
            score = 20;
        }
-       logger.debug("score 2: " + score);
+       logger.debug("score: " + score);
        return score;
     }
     
     /* Extract statistics from text.
      */
     private Map extractStatistics(String text) throws IOException {
-        JLanguageTool langTool = new JLanguageTool(new SwissGerman());
+        //JLanguageTool langTool = new JLanguageTool(new SwissGerman());
 
         // Calculate common word score and readability index (rix)
         int docLength = 0;
@@ -137,24 +168,23 @@ public class AnalyzeService {
             }
             sentencesWordCount.add(sentenceWordCount);
         }
-        System.out.println("docLength: " + docLength);        
-        System.out.println("docScores: " + docScores);
-        System.out.println("sentencesWordCount: " + sentencesWordCount);
-        System.out.println("longWordCount: " + longWordCount);
-        System.out.println("analyzedSentences.size(): " + analyzedSentences.size());
+        logger.debug("docLength (Anzahl tokens): " + docLength);        
+        logger.debug("docScores: " + docScores);
+        logger.debug("sentencesWordCount: " + sentencesWordCount);
+        logger.debug("longWordCount: (Wörter >= 6)" + longWordCount);
+        logger.debug("analyzedSentences (Anzahl Sätze): " + analyzedSentences.size());
         
         double commonWordScore = (docScores / docLength) / 1000.0;
         double readabilityIndex = longWordCount / (double) analyzedSentences.size();
-        System.err.println("commonWordScore: " + commonWordScore);
-        System.err.println("readabilityIndex: " + readabilityIndex);
+        logger.debug("commonWordScore: " + commonWordScore);
+        logger.debug("readabilityIndex: " + readabilityIndex);
         
-        // Calculate the standard deviation and mean of the sentences
+        // Calculate the standard deviation and mean of the sentences (per token)
         double sentenceLengthMean = sentencesWordCount.stream().mapToInt(Integer::intValue).average().orElse(0.0);
         double variance = sentencesWordCount.stream().mapToDouble(length -> Math.pow(length - sentenceLengthMean, 2)).average().orElse(0.0);
         double sentenceLengthStd = Math.sqrt(variance);
-
-        System.err.println("sentenceLengthStd: " + sentenceLengthStd);
-        System.err.println("sentenceLengthMean: " + sentenceLengthMean);
+        logger.debug("sentenceLengthStd: " + sentenceLengthStd);
+        logger.debug("sentenceLengthMean: " + sentenceLengthMean);
         
         HashMap<String,Double> statistics = new HashMap<>();
         statistics.put("common_word_score", commonWordScore);

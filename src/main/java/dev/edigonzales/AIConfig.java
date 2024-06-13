@@ -41,6 +41,4 @@ public class AIConfig {
                 
         return client;   
     }
-
-    
 }
