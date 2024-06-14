@@ -6,6 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
+import dev.edigonzales.statistics.StatisticsResponse;
+import dev.edigonzales.statistics.StatisticsService;
+
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.regex.Matcher;
@@ -42,19 +45,27 @@ public class SimplifyService {
     @Value("classpath:/prompts/openai_ls.st")
     private Resource openAiPromptLS;
 
+    private StatisticsService statisticsService;
+    
     private ChatClient openAiGpt4ChatClient;
 
     private ChatClient openAiGpt4oChatClient;
 
     public SimplifyService(
+            StatisticsService statisticsService,
             @Qualifier("gpt-4") ChatClient openAiGpt4ChatClient,
             @Qualifier("gpt-4o") ChatClient openAiGpt4oChatClient
             ) {
+        this.statisticsService = statisticsService;
         this.openAiGpt4ChatClient = openAiGpt4ChatClient;
         this.openAiGpt4oChatClient = openAiGpt4oChatClient;
     }
 
-    public String call(String text, boolean leichteSprache, boolean condenseText, String modelName) throws IOException {
+    public SimplifyResponse call(String text, boolean leichteSprache, boolean condenseText, String modelName) throws IOException {
+        double sourceScore = statisticsService.getUnderstandability(text);
+        String sourceCefrLevel = StatisticsService.getCefrLevel(sourceScore);
+        StatisticsResponse textStatisticsSource = new StatisticsResponse(sourceScore, sourceCefrLevel); 
+        
         String systemMessage;
         String prompt;
         String rules;
@@ -77,10 +88,10 @@ public class SimplifyService {
         
         ChatClient chatClient;
         if (modelName.equalsIgnoreCase("gpt-4")) {
-            logger.debug("using GPT-4");
+            logger.debug("simplify using GPT-4");
             chatClient = openAiGpt4ChatClient;
         } else {
-            logger.debug("using GPT-4o");
+            logger.debug("simplify using GPT-4o");
             chatClient = openAiGpt4oChatClient;
         }
 
@@ -95,7 +106,7 @@ public class SimplifyService {
                 })
                 .call()
                 .content();
-        logger.info(response);
+        logger.debug(response);
         
         String regex;
         if (leichteSprache) {
@@ -109,9 +120,13 @@ public class SimplifyService {
 
         boolean matchFound = matcher.find();
         if (matchFound) {
-            return matcher.group(1).trim();
+            String targetText = matcher.group(1).trim();
+            double targetScore = statisticsService.getUnderstandability(targetText);
+            String targetCefrLevel = StatisticsService.getCefrLevel(targetScore);
+            StatisticsResponse textStatisticsTarget = new StatisticsResponse(targetScore, targetCefrLevel);
+            return new SimplifyResponse(targetText, textStatisticsSource, textStatisticsTarget);
         } else {
-            return "something went wrong";
+            return new SimplifyResponse("something went wrong", null, null);
         }        
     }
 }

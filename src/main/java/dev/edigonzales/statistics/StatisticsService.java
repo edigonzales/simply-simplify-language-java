@@ -1,4 +1,4 @@
-package dev.edigonzales.service;
+package dev.edigonzales.statistics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,8 +30,8 @@ import org.languagetool.language.SwissGerman;
 
 
 @Service
-public class AnalyzeService {
-    private static final Logger logger = LoggerFactory.getLogger(AnalyzeService.class);
+public class StatisticsService {
+    private static final Logger logger = LoggerFactory.getLogger(StatisticsService.class);
 
     @Value("classpath:/data/word_scores.parquet")
     private Resource wordScoresParquet;
@@ -40,7 +40,7 @@ public class AnalyzeService {
     
     private HashMap<String,Integer> wordScores = null;
     
-    public AnalyzeService(JLanguageTool langTool) {
+    public StatisticsService(JLanguageTool langTool) {
         this.langTool = langTool;
     }
         

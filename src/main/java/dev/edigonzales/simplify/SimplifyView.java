@@ -3,19 +3,22 @@ package dev.edigonzales.simplify;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.HashMap;
-import java.util.Map;import org.slf4j.LoggerFactory;
+import java.util.Map;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 
 import com.vaadin.flow.component.Composite;
+import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.JustifyContentMode;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -28,8 +31,10 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
 import com.vaadin.flow.theme.lumo.LumoUtility.Gap;
 
-import ch.qos.logback.classic.Logger;
-import dev.edigonzales.service.AnalyzeService;
+import dev.edigonzales.statistics.StatisticsService;
+
+import org.jsoup.Jsoup;
+import org.jsoup.safety.Safelist;
 
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 
@@ -42,9 +47,13 @@ public class SimplifyView extends Composite<VerticalLayout> {
     
     private SimplifyService simplifyService;
     
-    private AnalyzeService analyzeService;
+    private StatisticsService analyzeService;
     
-    public SimplifyView(SimplifyService simplifyService, AnalyzeService analyzeService) {
+    // Limits for the understandability score to determine if the text is easy, medium or hard to understand.
+    private static final int LIMIT_HARD = 13;
+    private static final int LIMIT_MEDIUM = 16;
+
+    public SimplifyView(SimplifyService simplifyService, StatisticsService analyzeService) {
         this.simplifyService = simplifyService;
         this.analyzeService = analyzeService;
         
@@ -79,10 +88,10 @@ public class SimplifyView extends Composite<VerticalLayout> {
         
         h3.setText("Sprache einfach vereinfachen");
         h3.setWidth("max-content");
-        textSmall.setText(
-                "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.");
+        Html htmlSmallText = new Html("<span>⚠ Achtung: Diese App ist ein Prototyp. Nutze die App <span style=\"color:red;font-weight:700;\">nur für öffentliche, nicht sensible Daten</span>. Die App liefert lediglich einen Textentwurf. Überprüfe das Ergebnis immer und passe es an, wenn nötig.</span>");
+        textSmall.add(htmlSmallText);
         textSmall.setWidth("100%");
-        textSmall.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        textSmall.getStyle().set("font-size", "var(--lumo-font-size-s)");
         
         layoutRow.setWidthFull();
         getContent().setFlexGrow(1.0, layoutRow);
@@ -100,10 +109,10 @@ public class SimplifyView extends Composite<VerticalLayout> {
         textAreaBefore.getStyle().set("font-size", "0.9em");
         textAreaBefore.setMaxLength(MAX_CHARACTERS);
         verticalCol1.add(textAreaBefore);
-        textSmallBefore.setText("Lorem ipsum dolor sit amet.");
+        textSmallBefore.setText("");
         textSmallBefore.setWidth("100%");
         textSmallBefore.getStyle().set("flex-grow", "0");
-        textSmallBefore.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        textSmallBefore.getStyle().set("font-size", "var(--lumo-font-size-s)");
         verticalCol1.add(textSmallBefore);
 
         verticalCol2.setAlignItems(FlexComponent.Alignment.STRETCH);
@@ -115,16 +124,16 @@ public class SimplifyView extends Composite<VerticalLayout> {
         textAreaAfter.getStyle().set("font-size", "0.9em");
         textAreaAfter.setReadOnly(true);
         verticalCol2.add(textAreaAfter);
-        textSmallAfter.setText("Lorem ipsum dolor sit amet.");
+        textSmallAfter.setText("");
         textSmallAfter.setWidth("100%");
         textSmallAfter.getStyle().set("flex-grow", "0");
-        textSmallAfter.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        textSmallAfter.getStyle().set("font-size", "var(--lumo-font-size-s)");
         verticalCol2.add(textSmallAfter);
 
         textSmallResult.setText("Lorem ipsum dolor sit amet.");
         textSmallResult.getStyle().set("flex-grow", "1");
         textSmallResult.setWidth("50%");
-        textSmallResult.getStyle().set("font-size", "var(--lumo-font-size-xs)");
+        textSmallResult.getStyle().set("font-size", "var(--lumo-font-size-s)");
         
 //        layoutRow2.setWidthFull();
 //        getContent().setFlexGrow(1.0, layoutRow2);
@@ -199,8 +208,40 @@ public class SimplifyView extends Composite<VerticalLayout> {
         
         buttonSimplify.addClickListener(ev -> {
             try {
-                String simplifiedText = simplifyService.call(textAreaBefore.getValue(), checkboxLeichteSprache.getValue(), checkboxCondensedText.getValue(), radioGroup.getValue().toString().toLowerCase());
-                textAreaAfter.setValue(simplifiedText);
+                SimplifyResponse simplifyResponse = simplifyService.call(textAreaBefore.getValue(), checkboxLeichteSprache.getValue(), checkboxCondensedText.getValue(), radioGroup.getValue().toString().toLowerCase());
+                textAreaAfter.setValue(simplifyResponse.simplifiedText());
+                {
+                    int score = Double.valueOf(simplifyResponse.sourceStatistics().score()).intValue();
+                    String cefrLevel = simplifyResponse.sourceStatistics().cefrLevel();
+                    
+                    textSmallBefore.removeAll();
+                    if (score < LIMIT_HARD) {
+                        Html htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:red;font-weight:700;\">schwer verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:red;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallBefore.add(htmlText);
+                    } else if (score >= LIMIT_HARD && score < LIMIT_MEDIUM) {
+                        Html htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:orange;font-weight:700;\">nur mässig verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:orange;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallBefore.add(htmlText);
+                    } else {
+                        Html htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:green;font-weight:700;\">gut verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:green;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallBefore.add(htmlText);
+                    }                    
+                }
+                {
+                    int score = Double.valueOf(simplifyResponse.targetStatistics().score()).intValue();
+                    String cefrLevel = simplifyResponse.targetStatistics().cefrLevel();
+                    
+                    textSmallAfter.removeAll();
+                    if (score < LIMIT_HARD) {
+                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:red;font-weight:700;\">schwer verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:red;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallAfter.add(htmlText);
+                    } else if (score >= LIMIT_HARD && score < LIMIT_MEDIUM) {
+                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:orange;font-weight:700;\">nur mässig verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:orange;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallAfter.add(htmlText);
+                    } else {
+                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:green;font-weight:700;\">gut verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:green;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                        textSmallAfter.add(htmlText);
+                    }                    
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -213,7 +254,6 @@ public class SimplifyView extends Composite<VerticalLayout> {
                 e.printStackTrace();
             }
         });
-        
         
         textAreaBefore.setValue(sampleText01);
     }

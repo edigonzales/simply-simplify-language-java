@@ -1,5 +1,5 @@
 package dev.edigonzales.simplify;
 
-import dev.edigonzales.service.AnalyzeResponse;
+import dev.edigonzales.statistics.StatisticsResponse;
 
-public record SimplifyResponse(String simplifiedText, AnalyzeResponse analyzeResponse) {}
+public record SimplifyResponse(String simplifiedText, StatisticsResponse sourceStatistics, StatisticsResponse targetStatistics) {}
