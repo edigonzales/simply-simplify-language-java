@@ -1,7 +1,10 @@
 package dev.edigonzales.simplify;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.LoggerFactory;
@@ -15,6 +18,7 @@ import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Paragraph;
@@ -29,8 +33,12 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouteAlias;
+import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.theme.lumo.LumoUtility.Gap;
 
+import dev.edigonzales.analyze.AnalyzeResponse;
+import dev.edigonzales.analyze.AnalyzeService;
+import dev.edigonzales.export.WordExportService;
 import dev.edigonzales.statistics.StatisticsService;
 
 import org.jsoup.Jsoup;
@@ -47,15 +55,18 @@ public class SimplifyView extends Composite<VerticalLayout> {
     
     private SimplifyService simplifyService;
     
-    private StatisticsService analyzeService;
-    
+    private AnalyzeService analyzeService;
+
+    private WordExportService wordExportService;
+
     // Limits for the understandability score to determine if the text is easy, medium or hard to understand.
     private static final int LIMIT_HARD = 13;
     private static final int LIMIT_MEDIUM = 16;
 
-    public SimplifyView(SimplifyService simplifyService, StatisticsService analyzeService) {
+    public SimplifyView(SimplifyService simplifyService, AnalyzeService analyzeService, WordExportService wordExportService) {
         this.simplifyService = simplifyService;
         this.analyzeService = analyzeService;
+        this.wordExportService = wordExportService;
         
         H3 h3 = new H3();
         Paragraph textSmall = new Paragraph();
@@ -197,7 +208,7 @@ public class SimplifyView extends Composite<VerticalLayout> {
         getContent().add(layoutRow);
         layoutRow.add(verticalCol1);
         layoutRow.add(verticalCol2);
-        layoutRow.add(textSmallResult);        
+//        layoutRow.add(textSmallResult);        
         getContent().add(layoutRow3);
         layoutRow3.add(checkboxLeichteSprache);
         layoutRow3.add(checkboxCondensedText);
@@ -205,7 +216,7 @@ public class SimplifyView extends Composite<VerticalLayout> {
         getContent().add(layoutRow4);
         layoutRow4.add(buttonAnalyse);
         layoutRow4.add(buttonSimplify);
-        
+                
         buttonSimplify.addClickListener(ev -> {
             try {
                 SimplifyResponse simplifyResponse = simplifyService.call(textAreaBefore.getValue(), checkboxLeichteSprache.getValue(), checkboxCondensedText.getValue(), radioGroup.getValue().toString().toLowerCase());
@@ -213,6 +224,53 @@ public class SimplifyView extends Composite<VerticalLayout> {
                 {
                     int score = Double.valueOf(simplifyResponse.sourceStatistics().score()).intValue();
                     String cefrLevel = simplifyResponse.sourceStatistics().cefrLevel();
+                    
+                    textSmallBefore.removeAll();
+                    Html htmlText;
+                    if (score < LIMIT_HARD) {
+                        htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:red;font-weight:700;\">schwer verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:red;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    } else if (score >= LIMIT_HARD && score < LIMIT_MEDIUM) {
+                        htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:orange;font-weight:700;\">nur mässig verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:orange;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    } else {
+                        htmlText = new Html("<span>Dein Ausgangstext ist <span style=\"color:green;font-weight:700;\">gut verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:green;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    }                    
+                    textSmallBefore.add(htmlText);                    
+                }
+                {
+                    int score = Double.valueOf(simplifyResponse.targetStatistics().score()).intValue();
+                    String cefrLevel = simplifyResponse.targetStatistics().cefrLevel();
+                    
+                    textSmallAfter.removeAll();
+                    Html htmlText;
+                    if (score < LIMIT_HARD) {
+                        htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:red;font-weight:700;\">schwer verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:red;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    } else if (score >= LIMIT_HARD && score < LIMIT_MEDIUM) {
+                        htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:orange;font-weight:700;\">nur mässig verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:orange;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    } else {
+                        htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:green;font-weight:700;\">gut verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:green;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
+                    }
+                    textSmallAfter.add(htmlText);
+                    
+                    StreamResource streamResource = new StreamResource("simplify.docx", () -> wordExportService.createWordFile(simplifyResponse.simplifiedText()));
+                    Anchor link = new Anchor(streamResource, "herunterladen");
+                    link.getElement().setAttribute("download", true);
+                    textSmallAfter.add(" Den vereinfachten Text ");
+                    textSmallAfter.add(link);
+                    textSmallAfter.add(".");
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        
+        buttonAnalyse.addClickListener(ev -> {
+            try {
+                AnalyzeResponse analyzeResponse = analyzeService.call(textAreaBefore.getValue(), checkboxLeichteSprache.getValue(), checkboxCondensedText.getValue(), radioGroup.getValue().toString().toLowerCase());
+                textAreaAfter.setValue(analyzeResponse.analyzeText());
+                
+                {
+                    int score = Double.valueOf(analyzeResponse.sourceStatistics().score()).intValue();
+                    String cefrLevel = analyzeResponse.sourceStatistics().cefrLevel();
                     
                     textSmallBefore.removeAll();
                     if (score < LIMIT_HARD) {
@@ -226,36 +284,22 @@ public class SimplifyView extends Composite<VerticalLayout> {
                         textSmallBefore.add(htmlText);
                     }                    
                 }
-                {
-                    int score = Double.valueOf(simplifyResponse.targetStatistics().score()).intValue();
-                    String cefrLevel = simplifyResponse.targetStatistics().cefrLevel();
-                    
-                    textSmallAfter.removeAll();
-                    if (score < LIMIT_HARD) {
-                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:red;font-weight:700;\">schwer verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:red;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
-                        textSmallAfter.add(htmlText);
-                    } else if (score >= LIMIT_HARD && score < LIMIT_MEDIUM) {
-                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:orange;font-weight:700;\">nur mässig verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:orange;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
-                        textSmallAfter.add(htmlText);
-                    } else {
-                        Html htmlText = new Html("<span>Dein vereinfachter Text ist <span style=\"color:green;font-weight:700;\">gut verständlich</span>: " + score + " von 20 Punkten. Das entspricht etwa dem <span style=\"color:green;font-weight:700;\">Sprachniveau "+cefrLevel+"</span>.</span>");
-                        textSmallAfter.add(htmlText);
-                    }                    
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        
-        buttonAnalyse.addClickListener(ev -> {
-            try {
-                analyzeService.getUnderstandability(textAreaBefore.getValue());
             } catch (IOException e) {
                 e.printStackTrace();
             }
         });
         
         textAreaBefore.setValue(sampleText01);
+    }
+    
+    private InputStream getInputStream(String value) {
+        String svg = "<?xml version='1.0' encoding='UTF-8' standalone='no'?>"
+            + "<svg  xmlns='http://www.w3.org/2000/svg' "
+            + "xmlns:xlink='http://www.w3.org/1999/xlink'>"
+            + "<rect x='10' y='10' height='100' width='100' "
+            + "style=' fill: #90C3D4'/><text x='30' y='30' fill='red'>"
+            + value + "</text>" + "</svg>";
+        return new ByteArrayInputStream(svg.getBytes(StandardCharsets.UTF_8));
     }
 
     private String sampleText01 = """
