@@ -2,6 +2,10 @@ package dev.edigonzales;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.ollama.api.OllamaModel;
+import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -37,6 +41,18 @@ public class AIConfig {
                     .withModel(OpenAiApi.ChatModel.GPT_4_O)
                 .build();
         var chatModel = new OpenAiChatModel(openAiApi, openAiChatOptions);
+        var client = ChatClient.builder(chatModel).build();
+                
+        return client;   
+    }
+    
+    @Bean("llama3")
+    public ChatClient ollamaLlama3ChatClient() {
+        var ollamaApi = new OllamaApi(); // hier die nicht default url
+
+        var chatModel = new OllamaChatModel(ollamaApi,
+                OllamaOptions.create()
+                    .withModel(OllamaModel.LLAMA3.getModelName()));
         var client = ChatClient.builder(chatModel).build();
                 
         return client;   

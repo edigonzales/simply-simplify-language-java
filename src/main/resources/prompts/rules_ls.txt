@@ -46,3 +46,4 @@
 - Stelle Aufzählungen als Liste dar.
 - Zeilenumbrüche helfen, Sinneinheiten zu bilden und erleichtern das Lesen. Füge deshalb nach Haupt- und Nebensätzen sowie nach sonstigen Sinneinheiten Zeilenumbrüche ein. Eine Sinneinheit soll maximal 8 Zeilen umfassen.
 - Eine Textzeile enthält inklusiv Leerzeichen maximal 85 Zeichen.
+- Verwende keine ß, sondern ss.

@@ -5,7 +5,7 @@ Beachte dabei folgende Regeln für Einfache Sprache (B1 bis A2):
 {completeness}
 {rules}
 
-Schreibe den vereinfachten Text innerhalb von <einfachesprache> Tags.
+Put your response between a <einfachesprache> and a </einfachesprache> tag.
 
 Hier ist der schwer verständliche Text:
 

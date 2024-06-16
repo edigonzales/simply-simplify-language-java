@@ -12,7 +12,7 @@ Die Regeln für Einfache Sprache, Sprachniveau B1 bis A2, sind diese hier:
 
 {rules}
 
-Schreibe deine Analyse innerhalb von <einfachesprache> Tags.
+Put your response between a <einfachesprache> and a </einfachesprache> tag.
 
 Hier ist der schwer verständliche Text:
 

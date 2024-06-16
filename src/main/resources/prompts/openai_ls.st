@@ -5,7 +5,7 @@ Beachte dabei folgende Regeln für Leichte Sprache (A2):
 {completeness}
 {rules}
 
-Schreibe den vereinfachten Text innerhalb von <leichtesprache> Tags.
+Put your response between a <leichtesprache> and a </leichtesprache> tag.
 
 Hier ist der schwer verständliche Text:
 

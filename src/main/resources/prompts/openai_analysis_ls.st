@@ -12,7 +12,7 @@ Die Regeln für Leichte Sprache, Sprachniveau A2, sind diese hier:
 
 {rules}
 
-Schreibe deine Analyse innerhalb von <leichtesprache> Tags.
+Put your response between a <leichtesprache> and a </leichtesprache> tag.
 
 Hier ist der schwer verständliche Text:
 

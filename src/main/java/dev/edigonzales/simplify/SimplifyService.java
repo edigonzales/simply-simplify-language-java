@@ -51,14 +51,18 @@ public class SimplifyService {
 
     private ChatClient openAiGpt4oChatClient;
 
+    private ChatClient ollamaLlama3ChatClient;
+
     public SimplifyService(
             StatisticsService statisticsService,
             @Qualifier("gpt-4") ChatClient openAiGpt4ChatClient,
-            @Qualifier("gpt-4o") ChatClient openAiGpt4oChatClient
+            @Qualifier("gpt-4o") ChatClient openAiGpt4oChatClient,
+            @Qualifier("llama3") ChatClient ollamaLlama3ChatClient
             ) {
         this.statisticsService = statisticsService;
         this.openAiGpt4ChatClient = openAiGpt4ChatClient;
         this.openAiGpt4oChatClient = openAiGpt4oChatClient;
+        this.ollamaLlama3ChatClient = ollamaLlama3ChatClient;
     }
 
     public SimplifyResponse call(String text, boolean leichteSprache, boolean condenseText, String modelName) throws IOException {
@@ -90,9 +94,12 @@ public class SimplifyService {
         if (modelName.equalsIgnoreCase("gpt-4")) {
             logger.debug("simplify using GPT-4");
             chatClient = openAiGpt4ChatClient;
-        } else {
+        } else if (modelName.equalsIgnoreCase("gpt-4o")) {
             logger.debug("simplify using GPT-4o");
             chatClient = openAiGpt4oChatClient;
+        } else {
+            logger.debug("simplify using Llama3");
+            chatClient= ollamaLlama3ChatClient;
         }
 
         logger.debug("asking chat client");
