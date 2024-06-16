@@ -1,5 +1,7 @@
 package dev.edigonzales.statistics;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,8 +10,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.avro.generic.GenericRecord;
-import org.apache.hadoop.conf.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,24 +17,16 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
-import org.apache.hadoop.fs.Path;
-import org.apache.parquet.avro.AvroParquetReader;
-import org.apache.parquet.hadoop.ParquetReader;
-import org.apache.parquet.hadoop.util.HadoopInputFile;
-import org.apache.parquet.io.InputFile;
 import org.languagetool.AnalyzedSentence;
 import org.languagetool.AnalyzedTokenReadings;
 import org.languagetool.JLanguageTool;
-import org.languagetool.language.SwissGerman;
-
-
 
 @Service
 public class StatisticsService {
     private static final Logger logger = LoggerFactory.getLogger(StatisticsService.class);
 
-    @Value("classpath:/data/word_scores.parquet")
-    private Resource wordScoresParquet;
+    @Value("classpath:/data/word_scores.csv")
+    private Resource wordScoresCsv;
     
     private JLanguageTool langTool;
     
@@ -211,21 +203,35 @@ public class StatisticsService {
      * how easy the text is to understand. We have lemmatized and lower cased the words.
      * Also note that the German `ß` has been replaced with `ss`.
      */
+//    @PostConstruct
+//    private void getWordScores2() throws IOException {
+//        wordScores = new HashMap<>();
+//        String file = wordScoresParquet.getFile().getAbsolutePath();
+//        Path path = new Path(file);
+//        InputFile inputFile = HadoopInputFile.fromPath(path, new Configuration());
+//        
+//        try(ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(inputFile).build()) {
+//            GenericRecord next = null;
+//            while((next = reader.read()) != null) {
+//                wordScores.put(next.get("lemma").toString(), Integer.valueOf(next.get("score").toString()));
+//            }
+//        }
+//    }
+    
     @PostConstruct
     private void getWordScores() throws IOException {
         wordScores = new HashMap<>();
-        String file = wordScoresParquet.getFile().getAbsolutePath();
-        Path path = new Path(file);
-        InputFile inputFile = HadoopInputFile.fromPath(path, new Configuration());
-        
-        try(ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(inputFile).build()) {
-            GenericRecord next = null;
-            while((next = reader.read()) != null) {
-                wordScores.put(next.get("lemma").toString(), Integer.valueOf(next.get("score").toString()));
+     
+        List<List<String>> records = new ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(wordScoresCsv.getFile().getAbsolutePath()))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] values = line.split(",");
+                wordScores.put(values[1], Integer.valueOf(values[0]));
             }
         }
     }
-        
+            
     /* 
      * Add a dot to lines that do not end with a dot and do some additional clean up to correctly 
      * calculate the understandability score.
