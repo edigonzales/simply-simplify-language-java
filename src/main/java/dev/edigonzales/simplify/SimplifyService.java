@@ -133,7 +133,15 @@ public class SimplifyService {
             StatisticsResponse textStatisticsTarget = new StatisticsResponse(targetScore, targetCefrLevel);
             return new SimplifyResponse(targetText, textStatisticsSource, textStatisticsTarget);
         } else {
-            return new SimplifyResponse("something went wrong", null, null);
+            // Dummy-Variante (momentan v.a. für Llama3)
+            String targetText = response.replace("<leichtesprache>", "")
+                    .replace("</leichtesprache>", "")
+                    .replace("<einfachesprache>", "")
+                    .replace("</einfachesprache>", "");
+            double targetScore = statisticsService.getUnderstandability(targetText);
+            String targetCefrLevel = StatisticsService.getCefrLevel(targetScore);
+            StatisticsResponse textStatisticsTarget = new StatisticsResponse(targetScore, targetCefrLevel);
+            return new SimplifyResponse(targetText, textStatisticsSource, textStatisticsTarget);
         }        
     }
 }
