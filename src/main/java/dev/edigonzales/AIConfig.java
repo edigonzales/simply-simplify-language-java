@@ -49,6 +49,7 @@ public class AIConfig {
     @Bean("llama3")
     public ChatClient ollamaLlama3ChatClient() {
         var ollamaApi = new OllamaApi(); // hier die nicht default url
+//        var ollamaApi = new OllamaApi("http://74.82.28.81:11434");
 
         var chatModel = new OllamaChatModel(ollamaApi,
                 OllamaOptions.create()
