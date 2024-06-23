@@ -22,6 +22,12 @@ public class AIConfig {
     @Value("${spring.ai.openai.chat.options.model}")
     private String openAiModel;
 
+    @Value("${app.ollama.host}")
+    private String ollamaHost;
+
+    @Value("${app.ollama.port}")
+    private String ollamaPort;
+    
     @Bean("gpt-4")
     public ChatClient openAiGpt4ChatClient() {
         var openAiApi = new OpenAiApi(openAiApiKey);        
@@ -48,8 +54,9 @@ public class AIConfig {
     
     @Bean("llama3")
     public ChatClient ollamaLlama3ChatClient() {
+        System.err.println("ollamaPort: " + ollamaPort);
 //        var ollamaApi = new OllamaApi(); // hier die nicht default url
-        var ollamaApi = new OllamaApi("http://74.82.28.81:11434");
+        var ollamaApi = new OllamaApi(ollamaHost+":"+ollamaPort);
 
         var chatModel = new OllamaChatModel(ollamaApi,
                 OllamaOptions.create()
